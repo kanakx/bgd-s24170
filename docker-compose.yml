@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:alpine
+    container_name: airbnb_postgres
+    env_file: .env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-airbnb} -d ${POSTGRES_DB:-airbnb_nyc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
