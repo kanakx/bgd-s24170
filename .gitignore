@@ -5,5 +5,19 @@ __pycache__/
 .venv/
 *.egg-info/
 .DS_Store
-
 .idea
+
+# dbt
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+
+# Spark
+spark/jars/
+*.jar
+derby.log
+metastore_db/
+
+# Airflow
+airflow-data/
+logs/

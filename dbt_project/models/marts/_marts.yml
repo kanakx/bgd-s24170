@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: neighbourhood_pricing
+    description: Aggregated pricing stats by neighbourhood and room type
+  - name: host_performance
+    description: Host-level performance metrics joined with verified review counts
+  - name: monthly_availability
+    description: Monthly availability rate and average price by neighbourhood

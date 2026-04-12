@@ -1,0 +1,32 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    description: Raw CSV data loaded by PySpark (all text columns)
+    tables:
+      - name: listings_raw
+        description: Raw Airbnb listing data from Inside Airbnb
+      - name: reviews_raw
+        description: Raw review data from Inside Airbnb
+      - name: calendar_raw
+        description: Raw calendar availability data from Inside Airbnb
+
+models:
+  - name: stg_listings
+    description: Cleaned listings with proper types, price parsing, and null handling
+    columns:
+      - name: listing_id
+        description: Unique listing identifier
+        tests:
+          - not_null
+          - unique
+  - name: stg_reviews
+    description: Cleaned reviews with proper date types
+    columns:
+      - name: review_id
+        description: Unique review identifier
+        tests:
+          - not_null
+  - name: stg_calendar
+    description: Cleaned calendar data with parsed prices and boolean availability

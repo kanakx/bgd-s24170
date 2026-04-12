@@ -13,5 +13,29 @@ services:
       timeout: 5s
       retries: 5
 
+  airflow:
+    build: ./airflow
+    container_name: airflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      POSTGRES_HOST: postgres
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./spark:/opt/airflow/spark
+      - ./dbt_project:/opt/airflow/dbt_project
+      - ./data:/opt/airflow/data
+      - ./src:/opt/airflow/src
+      - airflow-data:/opt/airflow/airflow-data
+    command: airflow standalone
+
 volumes:
   pgdata:
+  airflow-data:
