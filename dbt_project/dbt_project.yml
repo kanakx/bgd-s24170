@@ -1,0 +1,17 @@
+name: airbnb_boston
+version: "1.0.0"
+profile: airbnb_boston
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  airbnb_boston:
+    staging:
+      +schema: silver
+      +materialized: table
+    marts:
+      +schema: gold
+      +materialized: table

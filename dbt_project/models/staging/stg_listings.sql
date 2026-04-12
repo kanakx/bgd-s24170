@@ -1,0 +1,37 @@
+SELECT
+    id::BIGINT                                                          AS listing_id,
+    host_id::BIGINT                                                     AS host_id,
+    host_name,
+    NULLIF(host_since, '')::DATE                                        AS host_since,
+    NULLIF(host_response_time, 'N/A')                                   AS host_response_time,
+    NULLIF(REPLACE(NULLIF(host_response_rate, 'N/A'), '%', ''), '')::NUMERIC
+                                                                        AS host_response_rate,
+    NULLIF(REPLACE(NULLIF(host_acceptance_rate, 'N/A'), '%', ''), '')::NUMERIC
+                                                                        AS host_acceptance_rate,
+    CASE WHEN host_is_superhost = 't' THEN TRUE ELSE FALSE END         AS host_is_superhost,
+    neighbourhood_cleansed                                              AS neighbourhood,
+    neighbourhood_group_cleansed                                        AS neighbourhood_group,
+    latitude::NUMERIC                                                   AS latitude,
+    longitude::NUMERIC                                                  AS longitude,
+    property_type,
+    room_type,
+    accommodates::INT                                                   AS accommodates,
+    NULLIF(bedrooms, '')::INT                                           AS bedrooms,
+    NULLIF(beds, '')::INT                                               AS beds,
+    NULLIF(REPLACE(REPLACE(price, '$', ''), ',', ''), '')::NUMERIC      AS price,
+    minimum_nights::INT                                                 AS minimum_nights,
+    maximum_nights::INT                                                 AS maximum_nights,
+    number_of_reviews::INT                                              AS number_of_reviews,
+    NULLIF(first_review, '')::DATE                                      AS first_review,
+    NULLIF(last_review, '')::DATE                                       AS last_review,
+    NULLIF(review_scores_rating, '')::NUMERIC                           AS review_scores_rating,
+    NULLIF(review_scores_accuracy, '')::NUMERIC                         AS review_scores_accuracy,
+    NULLIF(review_scores_cleanliness, '')::NUMERIC                      AS review_scores_cleanliness,
+    NULLIF(review_scores_checkin, '')::NUMERIC                          AS review_scores_checkin,
+    NULLIF(review_scores_communication, '')::NUMERIC                    AS review_scores_communication,
+    NULLIF(review_scores_location, '')::NUMERIC                         AS review_scores_location,
+    NULLIF(review_scores_value, '')::NUMERIC                            AS review_scores_value,
+    CASE WHEN instant_bookable = 't' THEN TRUE ELSE FALSE END          AS instant_bookable,
+    NULLIF(reviews_per_month, '')::NUMERIC                              AS reviews_per_month
+FROM {{ source('bronze', 'listings_raw') }}
+WHERE id IS NOT NULL AND id != ''
