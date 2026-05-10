@@ -1,0 +1,122 @@
+dataProductContract:
+  version: "1.0.0"
+  lastUpdated: "2026-05-10"
+
+  product:
+    name: Boston Airbnb Neighbourhood Pricing Analytics
+    description: >
+      Aggregated pricing statistics for Boston Airbnb listings, broken down
+      by neighbourhood and room type. Includes average and median nightly price,
+      listing count, average guest rating, and review frequency.
+    owner: Kacper Kanak (s24170)
+    domain: Short-term rental / Hospitality
+    status: production-like
+    primaryUsers:
+      - Data analysts exploring Boston rental market
+      - Urban planners studying neighbourhood pricing dynamics
+      - Students and researchers in hospitality analytics
+
+  source:
+    origin: Inside Airbnb (insideairbnb.com)
+    dataset: Boston, MA — September 2025 snapshot
+    files:
+      - listings.csv.gz
+      - reviews.csv.gz
+      - calendar.csv.gz
+    license: Creative Commons CC0 1.0 Universal
+
+  schema:
+    tableName: gold.neighbourhood_pricing
+    exportFile: data_product/neighbourhood_pricing.csv
+    columns:
+      - name: neighbourhood
+        type: text
+        description: Boston neighbourhood name
+        nullable: false
+        example: Back Bay
+      - name: neighbourhood_group
+        type: text
+        description: Higher-level area grouping (empty for Boston dataset)
+        nullable: true
+        example: ""
+      - name: room_type
+        type: text
+        description: Airbnb room category
+        nullable: false
+        allowedValues: [Entire home/apt, Private room, Shared room, Hotel room]
+        example: Entire home/apt
+      - name: listing_count
+        type: bigint
+        description: Number of active listings in this neighbourhood-room_type group
+        nullable: false
+        example: 273
+      - name: avg_price
+        type: numeric
+        description: Average nightly price in USD
+        nullable: false
+        example: 311.26
+      - name: median_price
+        type: numeric
+        description: Median (50th percentile) nightly price in USD
+        nullable: false
+        example: 275.00
+      - name: avg_rating
+        type: numeric
+        description: Average guest review score (0-5 scale)
+        nullable: true
+        example: 4.69
+      - name: avg_reviews_per_month
+        type: numeric
+        description: Average monthly review count per listing
+        nullable: true
+        example: 1.84
+
+  quality:
+    metrics:
+      - name: Completeness
+        definition: Percentage of rows with non-null values in all key columns (neighbourhood, room_type, avg_price, listing_count)
+        currentValue: 100.0
+        threshold: ">= 99.0"
+        unit: "%"
+      - name: Uniqueness
+        definition: Percentage of unique (neighbourhood, room_type) composite keys — no duplicate aggregations
+        currentValue: 100.0
+        threshold: "= 100.0"
+        unit: "%"
+      - name: Validity
+        definition: Percentage of rows where avg_price > 0
+        currentValue: 100.0
+        threshold: ">= 99.0"
+        unit: "%"
+    rowCount: 55
+    freshness:
+      sourceSnapshot: "2025-09-01"
+      lastPipelineRun: "2026-05-10"
+
+  access:
+    format: CSV
+    repository: github.com/kanakx/bgd-s24170
+    filePath: data_product/neighbourhood_pricing.csv
+    database:
+      type: PostgreSQL (Docker)
+      table: gold.neighbourhood_pricing
+      instructions: >
+        Run 'docker compose up -d postgres' then connect to
+        localhost:5432/airbnb_nyc (user: airbnb / pass: airbnb_pass).
+    visibility: private (professor added as collaborator)
+
+  pipeline:
+    orchestrator: Apache Airflow
+    ingestion: Apache Kafka (KRaft) + Python producer/consumer
+    processing: PySpark (local mode)
+    transformation: dbt-postgres (staging -> silver, marts -> gold)
+    schedule: "@daily"
+    flow: >
+      Inside Airbnb CSVs -> Kafka topics -> bronze (PostgreSQL)
+      -> dbt staging (silver) -> dbt marts (gold) -> CSV export
+
+  governance:
+    owner: Kacper Kanak
+    studentId: s24170
+    accessPolicy: Available to PJATK Big Data course participants
+    marketplace: MS Teams — Big Data course channel
