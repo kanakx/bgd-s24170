@@ -11,4 +11,5 @@ RUN pip install --no-cache-dir \
     pyspark>=3.5 \
     dbt-postgres>=1.8 \
     requests>=2.31 \
-    psycopg2-binary>=2.9
+    psycopg2-binary>=2.9 \
+    kafka-python-ng>=2.0
