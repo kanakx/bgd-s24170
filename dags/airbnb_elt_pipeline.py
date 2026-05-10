@@ -6,11 +6,11 @@ WORKDIR = "/opt/airflow"
 
 with DAG(
     dag_id="airbnb_elt_pipeline",
-    description="ELT pipeline: download -> PySpark bronze -> dbt silver -> dbt gold",
+    description="ELT pipeline: download -> Kafka -> bronze -> dbt silver -> dbt gold",
     start_date=datetime(2025, 1, 1),
-    schedule=None,
+    schedule="@daily",
     catchup=False,
-    tags=["airbnb", "elt", "medallion"],
+    tags=["airbnb", "elt", "medallion", "kafka"],
 ) as dag:
 
     download_csvs = BashOperator(
@@ -18,9 +18,14 @@ with DAG(
         bash_command=f"cd {WORKDIR} && python spark/ingest.py download",
     )
 
-    spark_load_bronze = BashOperator(
-        task_id="spark_load_bronze",
-        bash_command=f"cd {WORKDIR} && python spark/ingest.py bronze",
+    produce_to_kafka = BashOperator(
+        task_id="produce_to_kafka",
+        bash_command=f"cd {WORKDIR} && python streaming/producer.py",
+    )
+
+    consume_to_bronze = BashOperator(
+        task_id="consume_to_bronze",
+        bash_command=f"cd {WORKDIR} && python streaming/consumer.py",
     )
 
     dbt_run_staging = BashOperator(
@@ -33,4 +38,4 @@ with DAG(
         bash_command=f"cd {WORKDIR}/dbt_project && dbt run --select marts --profiles-dir .",
     )
 
-    download_csvs >> spark_load_bronze >> dbt_run_staging >> dbt_run_marts
+    download_csvs >> produce_to_kafka >> consume_to_bronze >> dbt_run_staging >> dbt_run_marts

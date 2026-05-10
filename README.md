@@ -23,13 +23,20 @@ flowchart LR
     end
 
     subgraph docker["Docker Compose"]
-        subgraph airflow["Apache Airflow"]
+        subgraph airflow["Apache Airflow (@daily)"]
             DAG["DAG: airbnb_elt_pipeline"]
             T1["download_csvs"]
-            T2["spark_load_bronze"]
-            T3["dbt_run_staging"]
-            T4["dbt_run_marts"]
-            T1 --> T2 --> T3 --> T4
+            T2["produce_to_kafka"]
+            T3["consume_to_bronze"]
+            T4["dbt_run_staging"]
+            T5["dbt_run_marts"]
+            T1 --> T2 --> T3 --> T4 --> T5
+        end
+
+        subgraph kafka["Apache Kafka (KRaft)"]
+            KT1["airbnb.listings"]
+            KT2["airbnb.reviews"]
+            KT3["airbnb.calendar"]
         end
 
         subgraph pg["PostgreSQL"]
@@ -51,7 +58,8 @@ flowchart LR
         end
     end
 
-    CSV -->|"PySpark\n(JDBC)"| bronze
+    CSV -->|"Producer\n(kafka-python)"| kafka
+    kafka -->|"Consumer\n(kafka-python)"| bronze
     bronze -->|"dbt\nstaging"| silver
     silver -->|"dbt\nmarts"| gold
 ```
@@ -60,14 +68,23 @@ flowchart LR
 
 | Role | Tool |
 |------|------|
-| Orchestration | Apache Airflow (DAG-based scheduling + UI) |
-| Processing Engine | PySpark (local mode, JDBC writer) |
+| Orchestration | Apache Airflow (DAG-based scheduling + UI, `@daily`) |
+| Queue System | Apache Kafka (KRaft mode, single-node broker) |
+| Processing Engine | PySpark (local mode, used for download) |
 | Transformations | dbt-postgres (staging + marts models) |
 | Data Warehouse | PostgreSQL (Dockerized) |
 
+### Data Flow
+
+1. **Download** -- CSVs fetched from Inside Airbnb (skips if already present)
+2. **Produce** -- Python producer reads CSVs row-by-row, publishes JSON to Kafka topics (`airbnb.listings`, `airbnb.reviews`, `airbnb.calendar`)
+3. **Consume** -- Python consumer reads from Kafka topics, bulk-inserts into PostgreSQL bronze tables via `COPY`
+4. **dbt staging** -- Bronze -> Silver: type casting, price cleaning, null handling
+5. **dbt marts** -- Silver -> Gold: aggregations and JOINs
+
 ### Medallion Layers
 
-**Bronze (Raw)** -- PySpark loads CSVs as-is, all text columns, via JDBC `mode("overwrite")`
+**Bronze (Raw)** -- Consumer loads from Kafka as-is, all text columns
 
 **Silver (Cleaned)** -- dbt staging models: proper types, price parsing, null handling, deduplication
 
@@ -89,13 +106,13 @@ flowchart LR
 # 1. Copy environment file
 cp .env.example .env
 
-# 2. Start all services (PostgreSQL + Airflow)
+# 2. Start all services (PostgreSQL + Kafka + Airflow)
 docker compose up -d
 
-# 3. Open Airflow UI and trigger the DAG
+# 3. Open Airflow UI -- DAG runs automatically on @daily schedule
 open http://localhost:8080
 # Login: admin / admin (auto-created by Airflow standalone)
-# Navigate to airbnb_elt_pipeline -> Trigger DAG
+# To trigger manually: navigate to airbnb_elt_pipeline -> Trigger DAG
 ```
 
 ### CLI Alternative (without UI)
@@ -110,9 +127,12 @@ docker compose down -v
 
 ### Local Development (without Docker Airflow)
 ```bash
-docker compose up postgres -d
+docker compose up postgres kafka -d
 pip install -r requirements.txt
-python spark/ingest.py all
+
+python spark/ingest.py download
+KAFKA_BOOTSTRAP_SERVERS=localhost:9094 python streaming/producer.py
+KAFKA_BOOTSTRAP_SERVERS=localhost:9094 python streaming/consumer.py
 cd dbt_project && dbt run --profiles-dir .
 ```
 
@@ -121,10 +141,11 @@ cd dbt_project && dbt run --profiles-dir .
 | Layer | Strategy |
 |-------|----------|
 | Download | Skips if CSV already exists on disk |
-| Bronze | PySpark JDBC `mode("overwrite")` -- atomic table replace |
+| Producer | Re-sending rows to Kafka is safe (consumer always reads from beginning) |
+| Consumer | `DROP + CREATE` bronze tables before loading (clean slate per run) |
 | Silver/Gold | dbt manages table lifecycle (no manual DROP CASCADE) |
 | Schemas | `CREATE SCHEMA IF NOT EXISTS` (never drops) |
-| DAG | Re-triggerable at any time, produces same result |
+| DAG | `@daily` schedule, re-triggerable, produces same result |
 
 ## Data Quality Risks
 
@@ -141,16 +162,20 @@ Calendar data is a point-in-time snapshot. Reviews may contain duplicates from o
 
 ```
 bgd-s24170/
-├── docker-compose.yml              # PostgreSQL + Airflow
-├── airflow/Dockerfile              # Airflow image with Java + PySpark + dbt
+├── docker-compose.yml              # PostgreSQL + Kafka + Airflow
+├── airflow/Dockerfile              # Airflow image with Java + PySpark + dbt + kafka-python
 ├── .env.example                    # Environment template
 ├── requirements.txt                # Python dependencies
 │
 ├── dags/
-│   └── airbnb_elt_pipeline.py      # Airflow DAG definition
+│   └── airbnb_elt_pipeline.py      # Airflow DAG (5 tasks, @daily schedule)
+│
+├── streaming/
+│   ├── producer.py                 # CSV -> Kafka topics (JSON messages)
+│   └── consumer.py                 # Kafka topics -> PostgreSQL bronze (COPY)
 │
 ├── spark/
-│   └── ingest.py                   # PySpark: download CSVs + load bronze via JDBC
+│   └── ingest.py                   # PySpark: download CSVs + legacy bronze loader
 │
 ├── dbt_project/
 │   ├── dbt_project.yml             # dbt configuration
